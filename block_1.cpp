@@ -54,7 +54,7 @@ void *threadFunc(void *param)
         //     A[i][k]=0.0;
         // }
 
-        //循环划分任务
+        //块划分任务
         int num=(n-k)/worker_count;
         int my_first=k+1+t_id*num;
         //int my_last=k+(t_id+1)*num;
