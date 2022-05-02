@@ -31,7 +31,7 @@ void pthread_static();
 void *threadFunc0(void *param);
 void pthread_static0();
 
-//垂直划分
+//垂直划分（垂直划分）
 //线程函数定义
 void *threadFunc1(void *param)
 {
@@ -94,6 +94,53 @@ void *threadFunc1(void *param)
     pthread_exit(NULL);
 }
 
+//垂直划分（循环划分）
+//线程函数定义
+void *threadFunc3(void *param)
+{
+    threadParam_t *p=(threadParam_t*)param;
+    int t_id=p->t_id;
+    for(int k=0;k<n;k++)
+    {
+        if(t_id==0)
+        {
+            for(int j=k+1;j<n;j++)
+                A[k][j]=A[k][j]/A[k][k];
+            A[k][k]=1.0;
+        }
+        else
+            sem_wait(&sem_Division[t_id-1]);
+        
+        if(t_id==0)
+        {
+            for(int i=0;i<worker_count-1;i++)
+                sem_post(&sem_Division[i]);
+        }
+
+        for(int i=k+1+t_id;i<n;i++)
+        {
+            for(int j=k+1;j<n;j+=worker_count)
+                A[i][j]=A[i][j]-A[i][k]*A[k][j];
+            A[i][k]=0.0;
+        }
+
+
+        if(t_id==0)
+        {
+            for(int i=0;i<worker_count-1;i++)
+                sem_wait(&sem_leader);
+            for(int i=0;i<worker_count-1;i++)
+                sem_post(&sem_Elimination[i]);
+        }
+        else
+        {
+            sem_post(&sem_leader);
+            sem_wait(&sem_Elimination[t_id-1]);
+        }
+    }
+    pthread_exit(NULL);
+}
+
 void pthread_vertical()
 {
     //初始化信号量
@@ -121,7 +168,34 @@ void pthread_vertical()
         sem_destroy(&sem_Elimination[i]);
     }
 }
+//垂直划分（循环划分）
+void pthread_vertical1()
+{
 
+    sem_init(&sem_leader,0,0);
+    for(int i=0;i<worker_count-1;i++)
+    {
+        sem_init(&sem_Division[i],0,0);
+        sem_init(&sem_Elimination[i],0,0);
+    }
+
+    pthread_t handles[worker_count];
+    threadParam_t param[worker_count];
+    for(int t_id=0;t_id<worker_count;t_id++)
+    {
+        param[t_id].t_id=t_id;
+        pthread_create(&handles[t_id],NULL,threadFunc3,(void*)(param+t_id));
+    }
+    for(int t_id=0;t_id<worker_count;t_id++)
+        pthread_join(handles[t_id],NULL);
+
+    sem_destroy(&sem_leader);
+    for(int i=0;i<worker_count-1;i++)
+    {
+        sem_destroy(&sem_Division[i]);
+        sem_destroy(&sem_Elimination[i]);
+    }
+}
 
 
 void m_reset()
@@ -154,7 +228,7 @@ int main()
     int step=10;
     for(;n<=2000;n+=step)
     {
-    double time_2_1=0.0,time_2_2=0.0,time_3_1=0.0;
+    double time_2_1=0.0,time_2_2=0.0,time_3_1=0.0,time_3_2=0.0;
     cin>>n;  //矩阵规模
 	for(int i=0;i<n;i++)
 		A = new float*[n];
@@ -180,7 +254,15 @@ int main()
     time_2_2+=(newval.tv_sec - val.tv_sec) + (double)(newval.tv_usec - val.tv_usec) / 1000000.0;
     //print_result();
 
-    //垂直划分
+    //垂直划分（循环划分）
+    m_reset();
+    gettimeofday(&val,NULL);
+    for(int i=0;i<10;i++)
+        pthread_vertical1();
+    gettimeofday(&newval,NULL);
+    time_3_2+=(newval.tv_sec - val.tv_sec) + (double)(newval.tv_usec - val.tv_usec) / 1000000.0;
+
+    //垂直划分（块划分）
     m_reset();
     // print_result();
     // cout<<endl;
